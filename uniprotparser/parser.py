@@ -16,18 +16,18 @@ class UniprotSequence:
         """
         self.raw_acc = acc
         self.accession = None
-        self.isotype = None
+        self.isoform = None
         if parse_acc:
             match = acc_regex.search(self.raw_acc)
             if match:
                 self.accession = match.groupdict(default="")["accession"]
-                self.isotype = match.groupdict(default="")["isotype"]
+                self.isoform = match.groupdict(default="")["isotype"]
 
     def __str__(self):
-        return self.accession + self.isotype
+        return self.accession + self.isoform
 
     def __repr__(self):
-        return self.accession + self.isotype
+        return self.accession + self.isoform
 
 
 # The main operating object for parsing Uniprot ID from the output.
@@ -36,7 +36,7 @@ class UniprotSequence:
 class UniprotParser:
     base_url = "https://legacy.uniprot.org/uploadlists/"
 
-    def __init__(self, acc_list, unique=False, headers=None):
+    def __init__(self, acc_list, unique=False, headers=None, columns=""):
         """
         :type headers: dict
         headers dictionary
@@ -44,6 +44,8 @@ class UniprotParser:
         specify whether the list is unique
         :type acc_list: list
         list of UniProt accession id
+        :type columns: str
+        header of tabulated return UniProt data
         """
         if not headers:
             self.headers = {"User-Agent": "Python, GlypnirO"}
@@ -56,9 +58,9 @@ class UniprotParser:
                 if "-" not in a:
                     self.acc_list.append(a+"-1")
         self.total_input = len(acc_list)
+        self.columns = columns
 
-    @staticmethod
-    def create_params(acc_list, format="tab", include_isoform=True):
+    def create_params(self, acc_list, format="tab", include_isoform=True):
         """
         :type acc_list: list
         list of accession ids
@@ -82,10 +84,13 @@ class UniprotParser:
                 "format": format
             }
         if format == "tab":
-            base_dict["columns"] = "id,entry name,reviewed,protein names,genes,organism,length,database(RefSeq)," \
+            if self.columns == "":
+                base_dict["columns"] = "id,entry name,reviewed,protein names,genes,organism,length,database(RefSeq)," \
                                    "organism-id,go-id,go(biological process),go(cellular component),go(molecular function),comment(SUBCELLULAR LOCATION)," \
                                    "feature(TOPOLOGICAL_DOMAIN),feature(GLYCOSYLATION),mass,comment(MASS SPECTROMETRY)," \
                                    "sequence,feature(ALTERNATIVE SEQUENCE),comment(ALTERNATIVE PRODUCTS) "
+            else:
+                base_dict["columns"] = self.columns
         if include_isoform:
             base_dict["include"] = "yes"
         return base_dict
