@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uniprotparser"
-version = "1.0.0a"
+version = "1.0.1"
 description = "Getting Uniprot Data from Uniprot Accession ID through Uniprot REST API"
 authors = ["Toan K. Phung <toan.phungkhoiquoctoan@gmail.com>"]
 readme = "README.md"
