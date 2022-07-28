@@ -6,6 +6,7 @@ authors = ["Toan K. Phung <toan.phungkhoiquoctoan@gmail.com>"]
 readme = "README.md"
 license = "MIT"
 keywords = ["uniprot", "protein sequence", "database", "parser"]
+repository = "https://github.com/noatgnu/UniprotWebParser"
 
 [tool.poetry.dependencies]
 python = "^3.9"
