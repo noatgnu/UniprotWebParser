@@ -3,7 +3,33 @@ UniProt Database Web Parser Project
 
 TLDR: This parser can be used to parse UniProt accession id and obtain related data from the UniProt web database.
 
-To parse UniProt accession
+With version 1.0.2, support for the new UniProt REST API have been added under `betaparser` module of the package.
+
+In order to utilize this new module, you can follow the example bellow
+
+```python
+from uniprotparser.betaparser import UniprotParser
+from io import StringIO
+
+import pandas as pd
+example_acc_list = ["Q99490", "Q8NEJ0", "Q13322", "P05019", "P35568", "Q15323"]
+parser = UniprotParser()
+df = []
+#Yield result for 500 accession ids at a time
+for r in parser.parse(ids=example_acc_list):
+    df.append(pd.read_csv(StringIO(r), sep="\t"))
+
+#Check if there were more than one result and consolidate them into one dataframe
+if len(df) > 0:
+    df = pd.concat(df, ignore_index=True)
+else:
+    df = df[0]
+
+
+```
+
+---
+To parse UniProt accession with legacy API
 
 ```python
 from uniprotparser.parser import UniprotSequence
