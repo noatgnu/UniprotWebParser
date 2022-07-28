@@ -1,6 +1,5 @@
 import re
 import time
-from typing import List, Any
 
 import requests
 import json
@@ -47,28 +46,44 @@ class UniprotResultLink:
         return res
 
 
-
+# UniProt parser object for new UniProt REST API
 class UniprotParser:
     result_url: list[UniprotResultLink]
     base_url = "https://rest.uniprot.org/idmapping/run"
     check_status_url = "https://rest.uniprot.org/idmapping/status/"
 
-    def __init__(self, poll_interval=5, format="tsv", columns=""):
+    def __init__(self, poll_interval: int = 5, format: str = "tsv", columns: str = ""):
+        """
+
+        :type columns: str
+        string of all the fields represented in the final result delimited by ','
+        for a full list of all field names available visit this link https://www.uniprot.org/help/return_fields
+        :type poll_interval: int
+        long polling interval between each round of checking whether or not the mapping operation has finished
+        :type format: str
+        format for the final output, by default, it is tabulated or 'tsv'. 'json' or 'xlsx' can be used.
+        """
         self.poll_interval = poll_interval
         self.format = format
         if columns == "":
             self.columns = default_columns
         else:
             self.columns = columns
+
+        # storing all result url object for checking
         self.result_url = []
 
-
+    # get jobid from post submission
     def get_job_id(self):
         return json.loads(self.res.content.decode())["jobId"]
 
+    # parse iterator for obtaining the result. If the result is over 500 accs, the data would be submitted in separate
+    # jobs with 500 accs max for each
     def parse(self, ids):
         ids = list(ids)
         total_input = len(ids)
+        # submitting all jobs and obtain unique url with jobid for checking status then append to
+        # self.result_url attribute
         for i in range(0, total_input, 500):
 
             if (i + 500) <= total_input:
@@ -87,9 +102,12 @@ class UniprotParser:
                     "to": "UniProtKB"
                 })
                 self.result_url.append(UniprotResultLink(self.check_status_url + self.get_job_id(), self.poll_interval))
+        # iterate through result_url and check for result, if result is done, retrieve and yield
+        # the text data of the content
         for r in self.get_result():
             yield r.text
 
+    # create params using format, and field names supplied at the start to get result when they are ready
     def get_result(self):
         for res in self.get_result_url():
             base_dict = {
@@ -100,7 +118,9 @@ class UniprotParser:
             }
             yield requests.get(res+"/", params=base_dict)
 
-
+    # iterate through the result_url check if a redirection status is given by the url indicating that the result has
+    # finished, then yield the finished link and set status of the link as finished. if not, after going through all urls,
+    # sleep for the indicated polling time then recheck the urls again until all url has yielded.
     def get_result_url(self):
         complete = len(self.result_url)
         while complete > 0:
