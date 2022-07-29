@@ -3,6 +3,8 @@ import time
 
 import requests
 import json
+import aiohttp
+import asyncio
 
 default_columns = "accession,id,gene_names,protein_name,organism_name,organism_id,length,xref_refseq," \
                                    "go_id,go_p,go_c,go_f,cc_subcellular_location," \
@@ -36,15 +38,23 @@ class UniprotSequence:
         return self.accession + self.isoform
 
 class UniprotResultLink:
-    def __init__(self, url, poll_interval=5):
+    session: aiohttp.ClientSession
+
+    def __init__(self, url, poll_interval=5, aiohttp_session = None):
         self.url = url
         self.poll_interval = poll_interval
         self.completed = False
+        if aiohttp_session is not None:
+            self.session = aiohttp_session
 
     def check_status(self):
         res = requests.get(self.url, allow_redirects=False)
         return res
 
+    async def check_status_async(self):
+        async with self.session.get(self.url, allow_redirects=False) as response:
+            return response
+            
 
 # UniProt parser object for new UniProt REST API
 class UniprotParser:
@@ -137,8 +147,61 @@ class UniprotParser:
                         print("Polling again after {}".format(self.poll_interval))
             time.sleep(self.poll_interval)
 
+    async def get_result_url_async(self):
+        complete = len(self.result_url)
+        async with aiohttp.ClientSession() as session:
+            while complete > 0:
+                for r in self.result_url:
+                    r.session = session
+                    if not r.completed:
+                        res = await r.check_status_async()
+                        if res.status == 303:
+                            r.completed = True
+                            complete = complete - 1
+                            yield res.headers["Location"]
+                        elif res.status == 400:
+                            raise "Incorrect URL"
+                        else:
+                            print("Polling again after {}".format(self.poll_interval))
+                await asyncio.sleep(self.poll_interval)
 
+    async def get_result_async(self):
+        async with aiohttp.ClientSession() as session:
+            async for res in self.get_result_url_async():
+                base_dict = {
+                    "format": self.format,
+                    "size": 500,
+                    "fields": self.columns,
+                    "includeIsoform": "true"
+                }
+                async with session.get(res + "/", params=base_dict) as response:
+                    yield response
 
+    async def parse_async(self, ids):
+        ids = list(ids)
+        total_input = len(ids)
+        # submitting all jobs and obtain unique url with jobid for checking status then append to
+        # self.result_url attribute
+        async with aiohttp.ClientSession() as session:
+            for i in range(0, total_input, 500):
 
-
-
+                if (i + 500) <= total_input:
+                    print("Submitting {}/{}".format(i + 500, total_input))
+                    self.res = await session.post(self.base_url, data={
+                        "ids": ",".join(ids[i: i + 500]),
+                        "from": "UniProtKB_AC-ID",
+                        "to": "UniProtKB"
+                    })
+                    self.result_url.append(UniprotResultLink(self.check_status_url + self.get_job_id(), self.poll_interval))
+                else:
+                    print("Submitting {}/{}".format(total_input, total_input))
+                    self.res = await session.post(self.base_url, data={
+                        "ids": ",".join(ids[i: total_input]),
+                        "from": "UniProtKB_AC-ID",
+                        "to": "UniProtKB"
+                    })
+                    self.result_url.append(UniprotResultLink(self.check_status_url + self.get_job_id(), self.poll_interval))
+            # iterate through result_url and check for result, if result is done, retrieve and yield
+            # the text data of the content
+            async for r in self.get_result_async():
+                yield await r.text()
