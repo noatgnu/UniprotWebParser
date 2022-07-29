@@ -15,5 +15,11 @@ class TestBetaUniprotParser(TestCase):
                     if accession.accession:
                         acc.add(accession.accession)
         parser = UniprotParser()
+        df = []
         for r in parser.parse(ids=acc):
-            df = pd.read_csv(io.StringIO(r), sep="\t")
+            df.append(pd.read_csv(io.StringIO(r), sep="\t"))
+        if len(df) > 0:
+            df = pd.concat(df, ignore_index=True)
+        else:
+            df = df[0]
+        df.to_csv("test.csv", index=False)
