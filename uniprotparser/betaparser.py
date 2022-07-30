@@ -184,23 +184,26 @@ class UniprotParser:
         # self.result_url attribute
         async with aiohttp.ClientSession() as session:
             for i in range(0, total_input, 500):
-
                 if (i + 500) <= total_input:
                     print("Submitting {}/{}".format(i + 500, total_input))
-                    self.res = await session.post(self.base_url, data={
+                    async with session.post(self.base_url, data={
                         "ids": ",".join(ids[i: i + 500]),
                         "from": "UniProtKB_AC-ID",
                         "to": "UniProtKB"
-                    })
-                    self.result_url.append(UniprotResultLink(self.check_status_url + self.get_job_id(), self.poll_interval))
+                    }) as res:
+                        resp = await res.json()
+                        job_id = resp["jobId"]
+                        self.result_url.append(UniprotResultLink(self.check_status_url + job_id, self.poll_interval))
                 else:
                     print("Submitting {}/{}".format(total_input, total_input))
-                    self.res = await session.post(self.base_url, data={
+                    async with session.post(self.base_url, data={
                         "ids": ",".join(ids[i: total_input]),
                         "from": "UniProtKB_AC-ID",
                         "to": "UniProtKB"
-                    })
-                    self.result_url.append(UniprotResultLink(self.check_status_url + self.get_job_id(), self.poll_interval))
+                    }) as res:
+                        resp = await res.json()
+                        job_id = resp["jobId"]
+                        self.result_url.append(UniprotResultLink(self.check_status_url + job_id, self.poll_interval))
             # iterate through result_url and check for result, if result is done, retrieve and yield
             # the text data of the content
             async for r in self.get_result_async():
