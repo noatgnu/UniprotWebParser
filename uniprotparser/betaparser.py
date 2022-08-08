@@ -239,6 +239,7 @@ class UniprotParser:
                                 async with session.get(url) as response:
                                     yield response
                                     next_link = response.headers.get("link")
+                                    await asyncio.sleep(0.01)
                         else:
                             break
 
