@@ -26,7 +26,6 @@ class TestBetaUniprotParser(TestCase):
             df = df[0]
         df.to_csv("test.csv", index=False)
 
-
 @pytest.mark.asyncio
 async def test_parse():
     d = pd.read_csv(r"C:\Users\Toan Phung\Downloads\test_Copies_02.txt", sep="\t")

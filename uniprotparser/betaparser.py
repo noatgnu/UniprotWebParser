@@ -62,7 +62,7 @@ class UniprotParser:
     base_url = "https://rest.uniprot.org/idmapping/run"
     check_status_url = "https://rest.uniprot.org/idmapping/status/"
 
-    def __init__(self, poll_interval: int = 5, format: str = "tsv", columns: str = ""):
+    def __init__(self, poll_interval: int = 5, format: str = "tsv", columns: str = "", include_isoform=False):
         """
 
         :type columns: str
@@ -79,7 +79,7 @@ class UniprotParser:
             self.columns = default_columns
         else:
             self.columns = columns
-
+        self.include_isoform=include_isoform
         # storing all result url object for checking
         self.result_url = []
 
@@ -89,7 +89,7 @@ class UniprotParser:
 
     # parse iterator for obtaining the result. If the result is over 500 accs, the data would be submitted in separate
     # jobs with 500 accs max for each
-    def parse(self, ids):
+    def old_parse(self, ids):
         ids = list(ids)
         total_input = len(ids)
         # submitting all jobs and obtain unique url with jobid for checking status then append to
@@ -117,6 +117,56 @@ class UniprotParser:
         for r in self.get_result():
             yield r.text
 
+    def parse(self, ids, segment=10000):
+        ids = list(ids)
+        total_input = len(ids)
+        for i in range(0, total_input, segment):
+            if (i + segment) <= total_input:
+                print("Submitting {}/{}".format(i + segment, total_input))
+                self.res = requests.post(self.base_url, data={
+                    "ids": ",".join(ids[i: i + segment]),
+                    "from": "UniProtKB_AC-ID",
+                    "to": "UniProtKB"
+                })
+                self.result_url.append(UniprotResultLink(self.check_status_url + self.get_job_id(), self.poll_interval))
+            else:
+                print("Submitting {}/{}".format(total_input, total_input))
+                self.res = requests.post(self.base_url, data={
+                    "ids": ",".join(ids[i: total_input]),
+                    "from": "UniProtKB_AC-ID",
+                    "to": "UniProtKB"
+                })
+                self.result_url.append(UniprotResultLink(self.check_status_url + self.get_job_id(), self.poll_interval))
+
+        for r in self.result_url:
+            while True:
+                res = r.check_status()
+                if res.status_code == 303:
+                    r.completed = True
+                    url = res.headers["Location"]
+                    base_dict = {
+                        "format": self.format,
+                        "size": 500,
+                        "fields": self.columns,
+                        "includeIsoform": "false"
+                    }
+                    if self.include_isoform:
+                        base_dict["includeIsoform"] = "true"
+                    dat = requests.get(url+"/", params=base_dict)
+                    while True:
+                        yield dat.text
+                        next_link = dat.headers.get("link")
+                        if next_link:
+                            match = re.search("<(.*)>;", next_link)
+                            if match:
+                                url = match.group(1)
+                                dat = requests.get(url)
+                        else:
+                            break
+                    break
+                else:
+                    time.sleep(self.poll_interval)
+
     # create params using format, and field names supplied at the start to get result when they are ready
     def get_result(self):
         for res in self.get_result_url():
@@ -124,8 +174,10 @@ class UniprotParser:
                 "format": self.format,
                 "size": 500,
                 "fields": self.columns,
-                "includeIsoform": "true"
+                "includeIsoform": "false"
             }
+            if self.include_isoform:
+                base_dict["includeIsoform"] = "true"
             yield requests.get(res+"/", params=base_dict)
 
     # iterate through the result_url check if a redirection status is given by the url indicating that the result has
@@ -174,20 +226,33 @@ class UniprotParser:
                     "fields": self.columns,
                     "includeIsoform": "true"
                 }
+                if self.include_isoform:
+                    base_dict["includeIsoform"] = "true"
                 async with session.get(res + "/", params=base_dict) as response:
                     yield response
+                    next_link = response.headers.get("link")
+                    while True:
+                        if next_link:
+                            match = re.search("<(.*)>;", next_link)
+                            if match:
+                                url = match.group(1)
+                                async with session.get(url) as response:
+                                    yield response
+                                    next_link = response.headers.get("link")
+                        else:
+                            break
 
-    async def parse_async(self, ids):
+    async def parse_async(self, ids, segment=10000):
         ids = list(ids)
         total_input = len(ids)
         # submitting all jobs and obtain unique url with jobid for checking status then append to
         # self.result_url attribute
         async with aiohttp.ClientSession() as session:
-            for i in range(0, total_input, 500):
-                if (i + 500) <= total_input:
-                    print("Submitting {}/{}".format(i + 500, total_input))
+            for i in range(0, total_input, segment):
+                if (i + segment) <= total_input:
+                    print("Submitting {}/{}".format(i + segment, total_input))
                     async with session.post(self.base_url, data={
-                        "ids": ",".join(ids[i: i + 500]),
+                        "ids": ",".join(ids[i: i + segment]),
                         "from": "UniProtKB_AC-ID",
                         "to": "UniProtKB"
                     }) as res:
