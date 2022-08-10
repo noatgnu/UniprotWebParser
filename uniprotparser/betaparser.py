@@ -224,7 +224,7 @@ class UniprotParser:
                     "format": self.format,
                     "size": 500,
                     "fields": self.columns,
-                    "includeIsoform": "true"
+                    "includeIsoform": "false"
                 }
                 if self.include_isoform:
                     base_dict["includeIsoform"] = "true"
@@ -239,7 +239,7 @@ class UniprotParser:
                                 async with session.get(url) as response:
                                     yield response
                                     next_link = response.headers.get("link")
-                                    await asyncio.sleep(0.01)
+                                    await asyncio.sleep(1)
                         else:
                             break
 
