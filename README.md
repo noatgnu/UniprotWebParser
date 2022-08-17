@@ -3,6 +3,17 @@ UniProt Database Web Parser Project
 
 TLDR: This parser can be used to parse UniProt accession id and obtain related data from the UniProt web database.
 
+To use:
+
+```bash
+python -m pip install uniprotparser
+```
+or 
+
+```bash
+python3 -m pip install uniprotparser
+```
+
 With version 1.0.5, support for asyncio through `aiohttp` has been added to `betaparser`. Usage can be seen as follow
 
 ```python
