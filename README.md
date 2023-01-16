@@ -1,5 +1,7 @@
 UniProt Database Web Parser Project
 --
+[![Downloads](https://static.pepy.tech/personalized-badge/uniprotparser?period=total&units=international_system&left_color=black&right_color=orange&left_text=Downloads)](https://pepy.tech/project/uniprotparser)
+
 
 TLDR: This parser can be used to parse UniProt accession id and obtain related data from the UniProt web database.
 
