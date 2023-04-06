@@ -16,6 +16,17 @@ or
 python3 -m pip install uniprotparser
 ```
 
+With version 1.1.0, a simple CLI interface has been added to the package.
+
+```bash
+Usage: uniprotparser [OPTIONS]
+
+Options:
+  -i, --input FILENAME   Input file containing a list of accession ids
+  -o, --output FILENAME  Output file
+  --help                 Show this message and exit.
+```
+
 With version 1.0.5, support for asyncio through `aiohttp` has been added to `betaparser`. Usage can be seen as follow
 
 ```python

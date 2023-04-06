@@ -6,14 +6,15 @@ import json
 import aiohttp
 import asyncio
 
-default_columns = "accession,id,gene_names,protein_name,organism_name,organism_id,length,xref_refseq," \
+# default columns to be returned by the uniprot api when querying for an accession id or a list of accession ids
+default_columns = "accession,id,gene_names,protein_name,organism_name,organism_id,length,xref_refseq,xref_geneid,xref_ensembl," \
                                    "go_id,go_p,go_c,go_f,cc_subcellular_location," \
                                    "ft_topo_dom,ft_carbohyd,mass,cc_mass_spectrometry," \
                                    "sequence,ft_var_seq,cc_alternative_products"
 # regex pattern for matching UniProt accession that can be used with the search object groupdict method to retrieve accession and isotype information separately
 acc_regex = re.compile("(?P<accession>[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2})(?P<isotype>-\d+)?")
 
-# sequence object for storing and presenting uniprot id.
+# sequence object for storing and presenting uniprot id. This is used to store the accession id and isotype of a protein entry
 class UniprotSequence:
     def __init__(self, acc, parse_acc=False):
         """
@@ -37,20 +38,28 @@ class UniprotSequence:
     def __repr__(self):
         return self.accession + self.isoform
 
+# object for storing and presenting uniprot id mapping result link from the new UniProt REST API
 class UniprotResultLink:
     session: aiohttp.ClientSession
-
+    # aiohttp session object for making asynchronous requests to the new UniProt REST API
     def __init__(self, url, poll_interval=5, aiohttp_session = None):
+        # url for the result link
+        # poll_interval for the long polling interval between each round of checking whether or not the mapping operation has finished
+        # aiohttp_session for making asynchronous requests to the new UniProt REST API
         self.url = url
         self.poll_interval = poll_interval
         self.completed = False
+        # whether or not the mapping operation has finished
+        #  if True, the result link is ready to be downloaded
         if aiohttp_session is not None:
             self.session = aiohttp_session
 
+    # method for checking whether or not the mapping operation has finished
     def check_status(self):
         res = requests.get(self.url, allow_redirects=False)
         return res
 
+    # asynchronous method for checking whether or not the mapping operation has finished
     async def check_status_async(self):
         async with self.session.get(self.url, allow_redirects=False) as response:
             return response
@@ -60,8 +69,9 @@ class UniprotResultLink:
 class UniprotParser:
     result_url: list[UniprotResultLink]
     base_url = "https://rest.uniprot.org/idmapping/run"
+    # base url for the new UniProt REST API
     check_status_url = "https://rest.uniprot.org/idmapping/status/"
-
+    # url for checking the status of the mapping operation
     def __init__(self, poll_interval: int = 5, format: str = "tsv", columns: str = "", include_isoform=False):
         """
 
@@ -118,9 +128,11 @@ class UniprotParser:
             yield r.text
 
     def parse(self, ids, segment=10000):
+        # segment is the number of accs to be submitted in each job  (default 10000)
         ids = list(ids)
         total_input = len(ids)
         for i in range(0, total_input, segment):
+            # submitting all jobs and obtain unique url with jobid for checking status then append to
             if (i + segment) <= total_input:
                 print("Submitting {}/{}".format(i + segment, total_input))
                 self.res = requests.post(self.base_url, data={
@@ -137,24 +149,28 @@ class UniprotParser:
                     "to": "UniProtKB"
                 })
                 self.result_url.append(UniprotResultLink(self.check_status_url + self.get_job_id(), self.poll_interval))
-
+        # iterate through result_url and check for result, if result is done, retrieve and yield the text data of the content
         for r in self.result_url:
             while True:
+                # check status of the job and if it is done (status code 303), retrieve the result from the url using Location data from header
                 res = r.check_status()
                 if res.status_code == 303:
                     r.completed = True
                     url = res.headers["Location"]
+                    # create params using format, and field names supplied at the start to get result when they are ready
                     base_dict = {
                         "format": self.format,
                         "size": 500,
                         "fields": self.columns,
                         "includeIsoform": "false"
                     }
+                    # if include isoform is true, add the parameter to the base dict
                     if self.include_isoform:
                         base_dict["includeIsoform"] = "true"
                     dat = requests.get(url+"/", params=base_dict)
                     while True:
                         yield dat.text
+                        # if there is a next link, retrieve the next link and get the data from the url
                         next_link = dat.headers.get("link")
                         if next_link:
                             match = re.search("<(.*)>;", next_link)
@@ -165,6 +181,7 @@ class UniprotParser:
                             break
                     break
                 else:
+                    # if the job is not done, sleep for the indicated polling time then recheck the urls again until all url has yielded.
                     time.sleep(self.poll_interval)
 
     # create params using format, and field names supplied at the start to get result when they are ready
@@ -184,6 +201,7 @@ class UniprotParser:
     # finished, then yield the finished link and set status of the link as finished. if not, after going through all urls,
     # sleep for the indicated polling time then recheck the urls again until all url has yielded.
     def get_result_url(self):
+        # keep track of the number of completed urls and stop when all urls are completed
         complete = len(self.result_url)
         while complete > 0:
             for r in self.result_url:

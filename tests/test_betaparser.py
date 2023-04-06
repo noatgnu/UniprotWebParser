@@ -26,6 +26,12 @@ class TestBetaUniprotParser(TestCase):
             df = df[0]
         df.to_csv("test.csv", index=False)
 
+    def test_parse_without_df(self):
+        parser = UniprotParser()
+        for r in parser.parse(ids={'Q99LR1', 'Q99LR1-2'}):
+            print(r)
+
+
 @pytest.mark.asyncio
 async def test_parse():
     d = pd.read_csv(r"C:\Users\Toan Phung\Downloads\test_Copies_02.txt", sep="\t")
