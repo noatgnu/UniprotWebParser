@@ -15,6 +15,32 @@ or
 ```bash
 python3 -m pip install uniprotparser
 ```
+With version 1.2.0, we have exposed `to` and `from` mapping parameters for UniProt API where you can indicate which database you want to map to and from.
+
+
+```python
+from uniprotparser import get_from_fields, get_to_fields
+
+#to get all available fields to map from
+
+from_fields = get_from_fields()
+print(from_fields)
+
+#to get all available fields to map to
+to_fields = get_to_fields()
+print(to_fields)
+```
+
+These parameters can be passed to the `parse` method of the `UniprotParser` class as follow
+
+```python
+from uniprotparser.betaparser import UniprotParser
+
+parser = UniprotParser()
+for p in parser.parse(ids=["P06493"], to_key="UniProtKB", from_key="UniProtKB_AC-ID"):
+    print(p)
+```
+
 
 With version 1.1.0, a simple CLI interface has been added to the package.
 

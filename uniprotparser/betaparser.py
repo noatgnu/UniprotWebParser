@@ -127,7 +127,7 @@ class UniprotParser:
         for r in self.get_result():
             yield r.text
 
-    def parse(self, ids, segment=10000):
+    def parse(self, ids, segment=10000, from_key="UniProtKB_AC-ID", to_key="UniProtKB"):
         # segment is the number of accs to be submitted in each job  (default 10000)
         ids = list(ids)
         total_input = len(ids)
@@ -137,8 +137,8 @@ class UniprotParser:
                 print("Submitting {}/{}".format(i + segment, total_input))
                 self.res = requests.post(self.base_url, data={
                     "ids": ",".join(ids[i: i + segment]),
-                    "from": "UniProtKB_AC-ID",
-                    "to": "UniProtKB"
+                    "from": from_key,
+                    "to": to_key
                 })
                 self.result_url.append(UniprotResultLink(self.check_status_url + self.get_job_id(), self.poll_interval))
             else:
@@ -261,7 +261,7 @@ class UniprotParser:
                         else:
                             break
 
-    async def parse_async(self, ids, segment=10000):
+    async def parse_async(self, ids, segment=10000, from_key="UniProtKB_AC-ID", to_key="UniProtKB"):
         ids = list(ids)
         total_input = len(ids)
         # submitting all jobs and obtain unique url with jobid for checking status then append to
@@ -272,8 +272,8 @@ class UniprotParser:
                     print("Submitting {}/{}".format(i + segment, total_input))
                     async with session.post(self.base_url, data={
                         "ids": ",".join(ids[i: i + segment]),
-                        "from": "UniProtKB_AC-ID",
-                        "to": "UniProtKB"
+                        "from": from_key,
+                        "to": to_key
                     }) as res:
                         resp = await res.json()
                         job_id = resp["jobId"]

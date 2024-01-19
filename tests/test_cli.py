@@ -13,6 +13,8 @@ class TestCli:
             f.write("P04637")
         result = runner.invoke(main, ["-i",filename,
                                       "-o", output])
+        with open(output, "rt") as f:
+            print(f.read())
         os.remove(filename)
         os.remove(output)
         assert result.exit_code == 0
