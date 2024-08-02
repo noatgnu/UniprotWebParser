@@ -16,12 +16,21 @@ acc_regex = re.compile("(?P<accession>[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([
 
 # sequence object for storing and presenting uniprot id. This is used to store the accession id and isotype of a protein entry
 class UniprotSequence:
+    """
+    Sequence object for storing and presenting UniProt ID. This is used to store the accession ID and isotype of a protein entry.
+
+    Attributes:
+        raw_acc (str): The raw accession ID string.
+        accession (str): The parsed accession ID.
+        isoform (str): The parsed isoform ID.
+    """
     def __init__(self, acc, parse_acc=False):
         """
-        :type parse_acc: bool
-        whether or not for the script to parse the accession id from the input
-        :type acc: str
-        a string containing the Uniprot accession ID of the sequence
+        Initialize the UniprotSequence object.
+
+        Args:
+            acc (str): A string containing the UniProt accession ID of the sequence.
+            parse_acc (bool): Whether or not to parse the accession ID from the input.
         """
         self.raw_acc = acc
         self.accession = None
@@ -40,9 +49,26 @@ class UniprotSequence:
 
 # object for storing and presenting uniprot id mapping result link from the new UniProt REST API
 class UniprotResultLink:
+    """
+    Object for storing and presenting UniProt ID mapping result link from the new UniProt REST API.
+
+    Attributes:
+        url (str): The URL for the result link.
+        poll_interval (int): The long polling interval between each round of checking whether or not the mapping operation has finished.
+        completed (bool): Whether or not the mapping operation has finished.
+        session (aiohttp.ClientSession): aiohttp session object for making asynchronous requests to the new UniProt REST API.
+    """
     session: aiohttp.ClientSession
     # aiohttp session object for making asynchronous requests to the new UniProt REST API
     def __init__(self, url, poll_interval=5, aiohttp_session = None):
+        """
+        Initialize the UniprotResultLink object.
+
+        Args:
+            url (str): The URL for the result link.
+            poll_interval (int): The long polling interval between each round of checking whether or not the mapping operation has finished.
+            aiohttp_session (aiohttp.ClientSession, optional): aiohttp session object for making asynchronous requests to the new UniProt REST API.
+        """
         # url for the result link
         # poll_interval for the long polling interval between each round of checking whether or not the mapping operation has finished
         # aiohttp_session for making asynchronous requests to the new UniProt REST API
@@ -56,17 +82,40 @@ class UniprotResultLink:
 
     # method for checking whether or not the mapping operation has finished
     def check_status(self):
+        """
+        Check whether or not the mapping operation has finished.
+
+        Returns:
+            requests.Response: The response object from the GET request.
+        """
         res = requests.get(self.url, allow_redirects=False)
         return res
 
     # asynchronous method for checking whether or not the mapping operation has finished
     async def check_status_async(self):
+        """
+        Asynchronously check whether or not the mapping operation has finished.
+
+        Returns:
+            aiohttp.ClientResponse: The response object from the GET request.
+        """
         async with self.session.get(self.url, allow_redirects=False) as response:
             return response
             
 
 # UniProt parser object for new UniProt REST API
 class UniprotParser:
+    """
+    UniProt parser object for the new UniProt REST API.
+
+    Attributes:
+        poll_interval (int): Long polling interval between each round of checking whether or not the mapping operation has finished.
+        format (str): Format for the final output, by default, it is tabulated or 'tsv'. 'json' or 'xlsx' can be used.
+        columns (str): String of all the fields represented in the final result delimited by ','.
+        include_isoform (bool): Whether or not to include isoform information in the results.
+        result_url (list[UniprotResultLink]): List of UniprotResultLink objects for checking status.
+    """
+
     result_url: list[UniprotResultLink]
     base_url = "https://rest.uniprot.org/idmapping/run"
     # base url for the new UniProt REST API
@@ -74,14 +123,13 @@ class UniprotParser:
     # url for checking the status of the mapping operation
     def __init__(self, poll_interval: int = 5, format: str = "tsv", columns: str = "", include_isoform=False):
         """
+        Initialize the UniprotParser object.
 
-        :type columns: str
-        string of all the fields represented in the final result delimited by ','
-        for a full list of all field names available visit this link https://www.uniprot.org/help/return_fields
-        :type poll_interval: int
-        long polling interval between each round of checking whether or not the mapping operation has finished
-        :type format: str
-        format for the final output, by default, it is tabulated or 'tsv'. 'json' or 'xlsx' can be used.
+        Args:
+            poll_interval (int): Long polling interval between each round of checking whether or not the mapping operation has finished.
+            format (str): Format for the final output, by default, it is tabulated or 'tsv'. 'json' or 'xlsx' can be used.
+            columns (str): String of all the fields represented in the final result delimited by ','.
+            include_isoform (bool): Whether or not to include isoform information in the results.
         """
         self.poll_interval = poll_interval
         self.format = format
@@ -95,11 +143,26 @@ class UniprotParser:
 
     # get jobid from post submission
     def get_job_id(self):
+        """
+        Get the job ID from the POST submission response.
+
+        Returns:
+            str: The job ID.
+        """
         return json.loads(self.res.content.decode())["jobId"]
 
     # parse iterator for obtaining the result. If the result is over 500 accs, the data would be submitted in separate
     # jobs with 500 accs max for each
     def old_parse(self, ids):
+        """
+        Parse the input IDs using the old method.
+
+        Args:
+            ids (list): List of UniProt accession IDs.
+
+        Yields:
+            str: The text data of the content.
+        """
         ids = list(ids)
         total_input = len(ids)
         # submitting all jobs and obtain unique url with jobid for checking status then append to
@@ -128,6 +191,18 @@ class UniprotParser:
             yield r.text
 
     def parse(self, ids, segment=10000, from_key="UniProtKB_AC-ID", to_key="UniProtKB"):
+        """
+        Parse the input IDs.
+
+        Args:
+            ids (list): List of UniProt accession IDs.
+            segment (int): The number of accession IDs to be submitted in each job (default 10000).
+            from_key (str): The source key for the ID mapping.
+            to_key (str): The target key for the ID mapping.
+
+        Yields:
+            str: The text data of the content.
+        """
         # segment is the number of accs to be submitted in each job  (default 10000)
         ids = list(ids)
         total_input = len(ids)
@@ -186,6 +261,12 @@ class UniprotParser:
 
     # create params using format, and field names supplied at the start to get result when they are ready
     def get_result(self):
+        """
+        Create params using format, and field names supplied at the start to get result when they are ready.
+
+        Yields:
+            requests.Response: The response object from the GET request.
+        """
         for res in self.get_result_url():
             base_dict = {
                 "format": self.format,
@@ -201,6 +282,14 @@ class UniprotParser:
     # finished, then yield the finished link and set status of the link as finished. if not, after going through all urls,
     # sleep for the indicated polling time then recheck the urls again until all url has yielded.
     def get_result_url(self):
+        """
+        Iterate through the result\_url, check if a redirection status is given by the URL indicating that the result has
+        finished, then yield the finished link and set the status of the link as finished. If not, after going through all URLs,
+        sleep for the indicated polling time then recheck the URLs again until all URLs have yielded.
+
+        Yields:
+            str: The URL of the completed result.
+        """
         # keep track of the number of completed urls and stop when all urls are completed
         complete = len(self.result_url)
         while complete > 0:
@@ -218,6 +307,14 @@ class UniprotParser:
             time.sleep(self.poll_interval)
 
     async def get_result_url_async(self):
+        """
+        Asynchronously iterate through the result_url, check if a redirection status is given by the URL indicating that the result has
+        finished, then yield the finished link and set the status of the link as finished. If not, after going through all URLs,
+        sleep for the indicated polling time then recheck the URLs again until all URLs have yielded.
+
+        Yields:
+            str: The URL of the completed result.
+        """
         complete = len(self.result_url)
         async with aiohttp.ClientSession() as session:
             while complete > 0:
@@ -236,6 +333,12 @@ class UniprotParser:
                 await asyncio.sleep(self.poll_interval)
 
     async def get_result_async(self):
+        """
+        Asynchronously retrieve the result from the URLs obtained from get\_result\_url\_async.
+
+        Yields:
+            aiohttp.ClientResponse: The response object from the GET request.
+        """
         async with aiohttp.ClientSession() as session:
             async for res in self.get_result_url_async():
                 base_dict = {
@@ -262,6 +365,18 @@ class UniprotParser:
                             break
 
     async def parse_async(self, ids, segment=10000, from_key="UniProtKB_AC-ID", to_key="UniProtKB"):
+        """
+        Asynchronously parse the input IDs by submitting jobs in segments, appending the result URLs to result\_url, and retrieving the results.
+
+        Args:
+            ids (list): List of UniProt accession IDs.
+            segment (int): The number of accession IDs to be submitted in each job (default 10000).
+            from_key (str): The source key for the ID mapping.
+            to_key (str): The target key for the ID mapping.
+
+        Yields:
+            str: The text data of the content.
+        """
         ids = list(ids)
         total_input = len(ids)
         # submitting all jobs and obtain unique url with jobid for checking status then append to
